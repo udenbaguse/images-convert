@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project follows Semantic Versioning.
 
+## [1.0.1] - 2026-04-19
+
+### Fixed
+- Fixed wrapper-to-dependency CLI invocation to use expected subcommand format (`convert <path>`).
+- Fixed `unknown command '<path>'` errors when converting with globally installed package.
+- Disabled unstable programmatic import path for CLI-only dependencies to prevent argument parser side effects.
+
 ## [1.0.0] - 2026-04-19
 
 ### Added

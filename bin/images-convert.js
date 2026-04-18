@@ -16,17 +16,23 @@ const FORMAT_CONFIG = {
   "to-webp": {
     packageName: "images-to-webp-cli",
     outputExtension: ".webp",
-    color: pc.cyan
+    color: pc.cyan,
+    useProgrammatic: false,
+    cliArgSets: (inputFile) => [["convert", inputFile], [inputFile]]
   },
   "to-avif": {
     packageName: "images-to-avif-cli",
     outputExtension: ".avif",
-    color: pc.green
+    color: pc.green,
+    useProgrammatic: false,
+    cliArgSets: (inputFile) => [["convert", inputFile], [inputFile]]
   },
   "to-svg": {
     packageName: "images-to-svg",
     outputExtension: ".svg",
-    color: pc.magenta
+    color: pc.magenta,
+    useProgrammatic: false,
+    cliArgSets: (inputFile) => [["convert", inputFile], [inputFile]]
   }
 };
 
@@ -153,37 +159,45 @@ async function tryProgrammaticConvert(packageName, inputFile, outputExtension) {
   }
 }
 
-function runCliConverter(binAbsolutePath, inputFile, outputExtension) {
+function runCliConverter(binAbsolutePath, inputFile, outputExtension, cliArgSets = [[inputFile]]) {
   const before = fs.statSync(inputFile).size;
-  const startedAt = Date.now();
+  let lastError = null;
 
-  const result = spawnSync(process.execPath, [binAbsolutePath, inputFile], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"]
-  });
+  for (const cliArgs of cliArgSets) {
+    const startedAt = Date.now();
+    const result = spawnSync(process.execPath, [binAbsolutePath, ...cliArgs], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
 
-  if (result.error) {
-    throw result.error;
+    if (result.error) {
+      lastError = result.error;
+      continue;
+    }
+
+    if (result.status !== 0) {
+      const rawMessage = `${result.stderr || ""}\n${result.stdout || ""}`.trim();
+      lastError = new Error(rawMessage || `Conversion process exited with code ${result.status}.`);
+      continue;
+    }
+
+    const outputFile = findOutputFile(inputFile, outputExtension, startedAt);
+
+    if (!outputFile) {
+      lastError = new Error("Conversion command completed, but output file was not found.");
+      continue;
+    }
+
+    const after = fs.statSync(outputFile).size;
+
+    return {
+      outputFile,
+      before,
+      after
+    };
   }
 
-  if (result.status !== 0) {
-    const rawMessage = `${result.stderr || ""}\n${result.stdout || ""}`.trim();
-    throw new Error(rawMessage || `Conversion process exited with code ${result.status}.`);
-  }
-
-  const outputFile = findOutputFile(inputFile, outputExtension, startedAt);
-
-  if (!outputFile) {
-    throw new Error("Conversion command completed, but output file was not found.");
-  }
-
-  const after = fs.statSync(outputFile).size;
-
-  return {
-    outputFile,
-    before,
-    after
-  };
+  throw lastError ?? new Error("Conversion failed with unknown error.");
 }
 
 function findOutputFile(inputFile, outputExtension, startedAt) {
@@ -215,19 +229,21 @@ function findOutputFile(inputFile, outputExtension, startedAt) {
 }
 
 async function convertSingleFile(filePath, formatOption) {
-  const { packageName, outputExtension } = FORMAT_CONFIG[formatOption];
+  const { packageName, outputExtension, cliArgSets, useProgrammatic } = FORMAT_CONFIG[formatOption];
 
-  const programmaticResult = await tryProgrammaticConvert(packageName, filePath, outputExtension);
+  if (useProgrammatic) {
+    const programmaticResult = await tryProgrammaticConvert(packageName, filePath, outputExtension);
 
-  if (programmaticResult.used) {
-    return {
-      ...programmaticResult,
-      method: "programmatic"
-    };
+    if (programmaticResult.used) {
+      return {
+        ...programmaticResult,
+        method: "programmatic"
+      };
+    }
   }
 
   const { binAbsolutePath } = resolvePackageInfo(packageName);
-  const cliResult = runCliConverter(binAbsolutePath, filePath, outputExtension);
+  const cliResult = runCliConverter(binAbsolutePath, filePath, outputExtension, cliArgSets(filePath));
 
   return {
     ...cliResult,
