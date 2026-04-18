@@ -1,0 +1,43 @@
+{
+  "name": "images-convert",
+  "version": "1.0.0",
+  "description": "Wrapper CLI for converting images to WebP, AVIF, and SVG using dedicated libraries.",
+  "type": "module",
+  "main": "./bin/images-convert.js",
+  "bin": {
+    "images-convert": "./bin/images-convert.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/udenbaguse/images-convert.git"
+  },
+  "homepage": "https://github.com/udenbaguse/images-convert#readme",
+  "bugs": {
+    "url": "https://github.com/udenbaguse/images-convert/issues"
+  },
+  "scripts": {
+    "images-convert": "node ./bin/images-convert.js"
+  },
+  "keywords": [
+    "image",
+    "convert",
+    "webp",
+    "avif",
+    "svg",
+    "cli",
+    "wrapper"
+  ],
+  "author": "Muhamad Syamsudin A.K.A @udenbaguse",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "images-to-avif-cli": "^1.0.1",
+    "images-to-svg": "^1.0.0",
+    "images-to-webp-cli": "^1.0.1",
+    "ora": "^8.0.1",
+    "picocolors": "^1.1.1"
+  }
+}
