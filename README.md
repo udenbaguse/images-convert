@@ -20,7 +20,7 @@ npm install -g images-convert
 Global command:
 
 ```bash
-images-convert <path> <format> [options]
+images-convert <path> [path ...] <format> [options]
 ```
 
 <!-- NPM script command:
@@ -47,6 +47,7 @@ npm run images-convert -- <path> to-<webp|avif|svg>
 ```bash
 images-convert ./assets/photo.jpg to-webp
 images-convert ./assets to-avif
+images-convert ./a.jpg ./b.png ./folder-images to-avif --quality 75
 images-convert ./assets/logo.png to-svg
 images-convert ./assets/favicon.png to-ico
 images-convert ./assets/photo.jpg to-avif --remove
@@ -56,7 +57,7 @@ images-convert ./assets/photo.jpg to-avif --quality 65 --output ./dist --remove
 ```
 Notes:
 
-- `<path>` can be a single file or a directory.
+- `<path>` can be one or many file/directory paths.
 - `<format>`: `to-webp`, `to-avif`, `to-svg`, `to-ico`.
 - Supported source input files: `.jpg`, `.jpeg`, `.png`.
 - For directory mode, files are read non-recursively from the selected folder.

@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project follows Semantic Versioning.
 
+## [1.1.1] - 2026-05-01
+
+### Added
+- Added support for multiple input paths in a single command.
+- Command usage now supports: `images-convert <path> [path ...] <format> [options]`.
+
+### Changed
+- Updated README usage and examples for multi-path conversion.
+- Improved input collection with deduplication when paths overlap.
+
 ## [1.1.0] - 2026-05-01
 
 ### Added

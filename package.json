@@ -1,6 +1,6 @@
 {
   "name": "images-convert",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Wrapper CLI for converting images to WebP, AVIF, SVG, and ICO using dedicated libraries.",
   "type": "module",
   "main": "./bin/images-convert.js",

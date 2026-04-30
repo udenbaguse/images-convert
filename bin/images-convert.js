@@ -103,6 +103,19 @@ function collectInputFiles(inputPath) {
   return files;
 }
 
+function collectInputFilesFromMultiplePaths(inputPaths) {
+  const allFiles = [];
+
+  for (const inputPath of inputPaths) {
+    const resolvedPath = path.resolve(inputPath);
+    const files = collectInputFiles(resolvedPath);
+    allFiles.push(...files);
+  }
+
+  // Preserve insertion order while removing duplicates.
+  return [...new Set(allFiles)];
+}
+
 function resolvePackageInfo(packageName) {
   const packageJsonPath = require.resolve(`${packageName}/package.json`);
   const packageDir = path.dirname(packageJsonPath);
@@ -337,9 +350,17 @@ async function main() {
     .option("--remove", "Remove original source file after successful conversion")
     .option("-o, --output <dir>", "Output directory for converted files")
     .option("-q, --quality <number>", "Quality for WebP/AVIF conversion (1-100)", "80")
-    .argument("<path>", "Input file or directory")
-    .argument("<format>", "Target format: to-webp | to-avif | to-svg | to-ico")
-    .action(async (inputPath, formatOption, options) => {
+    .argument("<inputs...>", "Input file(s)/directory(ies) followed by target format")
+    .action(async (inputs, options) => {
+      if (!Array.isArray(inputs) || inputs.length < 2) {
+        console.error(pc.red("Invalid arguments. Provide at least one path and one format."));
+        console.error(pc.yellow("Example: images-convert ./a.png ./b.jpg to-avif --remove"));
+        process.exitCode = 1;
+        return;
+      }
+
+      const formatOption = inputs[inputs.length - 1];
+      const inputPaths = inputs.slice(0, -1);
       const selected = FORMAT_CONFIG[formatOption];
 
       if (!selected) {
@@ -363,7 +384,6 @@ async function main() {
       }
 
       const color = selected.color;
-      const absoluteInputPath = path.resolve(inputPath);
       const outputDir = options.output ? path.resolve(options.output) : null;
 
       if (outputDir) {
@@ -372,7 +392,7 @@ async function main() {
 
       let filesToProcess = [];
       try {
-        filesToProcess = collectInputFiles(absoluteInputPath);
+        filesToProcess = collectInputFilesFromMultiplePaths(inputPaths);
       } catch (error) {
         console.error(pc.red(`Error: ${error.message}`));
         process.exitCode = 1;
