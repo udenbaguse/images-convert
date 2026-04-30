@@ -7,6 +7,8 @@ import { createRequire } from "module";
 import { Command } from "commander";
 import ora from "ora";
 import pc from "picocolors";
+import pngToIco from "png-to-ico";
+import sharp from "sharp";
 
 const require = createRequire(import.meta.url);
 
@@ -33,6 +35,13 @@ const FORMAT_CONFIG = {
     color: pc.magenta,
     useProgrammatic: false,
     cliArgSets: (inputFile) => [["convert", inputFile], [inputFile]]
+  },
+  "to-ico": {
+    packageName: null,
+    outputExtension: ".ico",
+    color: pc.yellow,
+    useProgrammatic: true,
+    cliArgSets: () => []
   }
 };
 
@@ -228,7 +237,66 @@ function findOutputFile(inputFile, outputExtension, startedAt) {
   return candidates[0]?.file ?? null;
 }
 
-async function convertSingleFile(filePath, formatOption) {
+async function convertSingleFile(filePath, formatOption, options = {}) {
+  const outputDir = options.output ? path.resolve(options.output) : null;
+
+  if (formatOption === "to-webp") {
+    const before = fs.statSync(filePath).size;
+    const outputFileName = `${path.parse(filePath).name}.webp`;
+    const outputFile = outputDir ? path.join(outputDir, outputFileName) : path.join(path.dirname(filePath), outputFileName);
+
+    await sharp(filePath).webp({ quality: options.quality }).toFile(outputFile);
+
+    const after = fs.statSync(outputFile).size;
+    return {
+      outputFile,
+      before,
+      after,
+      method: "programmatic"
+    };
+  }
+
+  if (formatOption === "to-avif") {
+    const before = fs.statSync(filePath).size;
+    const outputFileName = `${path.parse(filePath).name}.avif`;
+    const outputFile = outputDir ? path.join(outputDir, outputFileName) : path.join(path.dirname(filePath), outputFileName);
+
+    await sharp(filePath).avif({ quality: options.quality }).toFile(outputFile);
+
+    const after = fs.statSync(outputFile).size;
+    return {
+      outputFile,
+      before,
+      after,
+      method: "programmatic"
+    };
+  }
+
+  if (formatOption === "to-ico") {
+    const before = fs.statSync(filePath).size;
+    const outputFileName = `${path.parse(filePath).name}.ico`;
+    const outputFile = outputDir ? path.join(outputDir, outputFileName) : path.join(path.dirname(filePath), outputFileName);
+    const inputExtension = path.extname(filePath).toLowerCase();
+    let icoBuffer;
+
+    if (inputExtension === ".png") {
+      icoBuffer = await pngToIco(filePath);
+    } else {
+      const pngBuffer = await sharp(filePath).png().toBuffer();
+      icoBuffer = await pngToIco(pngBuffer);
+    }
+
+    fs.writeFileSync(outputFile, icoBuffer);
+    const after = fs.statSync(outputFile).size;
+
+    return {
+      outputFile,
+      before,
+      after,
+      method: "programmatic"
+    };
+  }
+
   const { packageName, outputExtension, cliArgSets, useProgrammatic } = FORMAT_CONFIG[formatOption];
 
   if (useProgrammatic) {
@@ -245,6 +313,15 @@ async function convertSingleFile(filePath, formatOption) {
   const { binAbsolutePath } = resolvePackageInfo(packageName);
   const cliResult = runCliConverter(binAbsolutePath, filePath, outputExtension, cliArgSets(filePath));
 
+  if (outputDir) {
+    const movedOutputFile = path.join(outputDir, path.basename(cliResult.outputFile));
+    if (fs.existsSync(movedOutputFile)) {
+      fs.unlinkSync(movedOutputFile);
+    }
+    fs.renameSync(cliResult.outputFile, movedOutputFile);
+    cliResult.outputFile = movedOutputFile;
+  }
+
   return {
     ...cliResult,
     method: "cli"
@@ -256,21 +333,42 @@ async function main() {
 
   program
     .name("images-convert")
-    .description("Wrapper CLI to convert images to WebP, AVIF, or SVG")
+    .description("Wrapper CLI to convert images to WebP, AVIF, SVG, or ICO")
+    .option("--remove", "Remove original source file after successful conversion")
+    .option("-o, --output <dir>", "Output directory for converted files")
+    .option("-q, --quality <number>", "Quality for WebP/AVIF conversion (1-100)", "80")
     .argument("<path>", "Input file or directory")
-    .argument("<format>", "Target format: to-webp | to-avif | to-svg")
-    .action(async (inputPath, formatOption) => {
+    .argument("<format>", "Target format: to-webp | to-avif | to-svg | to-ico")
+    .action(async (inputPath, formatOption, options) => {
       const selected = FORMAT_CONFIG[formatOption];
 
       if (!selected) {
         console.error(pc.red(`Invalid format: ${formatOption}`));
-        console.error(pc.yellow("Allowed formats: to-webp, to-avif, to-svg"));
+        console.error(pc.yellow("Allowed formats: to-webp, to-avif, to-svg, to-ico"));
+        process.exitCode = 1;
+        return;
+      }
+
+      const quality = Number.parseInt(options.quality, 10);
+      if (Number.isNaN(quality) || quality < 1 || quality > 100) {
+        console.error(pc.red("Invalid --quality value. Allowed range: 1-100."));
+        process.exitCode = 1;
+        return;
+      }
+
+      if (quality !== 80 && !["to-webp", "to-avif"].includes(formatOption)) {
+        console.error(pc.red("--quality is only supported for to-webp and to-avif."));
         process.exitCode = 1;
         return;
       }
 
       const color = selected.color;
       const absoluteInputPath = path.resolve(inputPath);
+      const outputDir = options.output ? path.resolve(options.output) : null;
+
+      if (outputDir) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
 
       let filesToProcess = [];
       try {
@@ -288,9 +386,12 @@ async function main() {
 
       let successCount = 0;
       let failCount = 0;
+      let removedCount = 0;
+      let removeFailCount = 0;
       let totalBefore = 0;
       let totalAfter = 0;
       const failures = [];
+      const removeFailures = [];
 
       for (let i = 0; i < filesToProcess.length; i += 1) {
         const filePath = filesToProcess[i];
@@ -299,7 +400,24 @@ async function main() {
         spinner.text = `Converting (${i + 1}/${filesToProcess.length}): ${fileName}`;
 
         try {
-          const result = await convertSingleFile(filePath, formatOption);
+          const result = await convertSingleFile(filePath, formatOption, {
+            output: outputDir,
+            quality
+          });
+
+          if (options.remove) {
+            try {
+              fs.unlinkSync(filePath);
+              removedCount += 1;
+            } catch (removeError) {
+              removeFailCount += 1;
+              removeFailures.push({
+                fileName,
+                error: removeError.message
+              });
+            }
+          }
+
           successCount += 1;
           totalBefore += result.before;
           totalAfter += result.after;
@@ -326,12 +444,23 @@ async function main() {
       console.log("\n" + pc.bold("Summary"));
       console.log(pc.green(`Success: ${successCount}`));
       console.log(pc.red(`Failed: ${failCount}`));
+      if (options.remove) {
+        console.log(pc.green(`Original removed: ${removedCount}`));
+        console.log(pc.yellow(`Original remove failed: ${removeFailCount}`));
+      }
       console.log(pc.white(`Total size: ${bytesToHuman(totalBefore)} -> ${bytesToHuman(totalAfter)} (${totalPercent})`));
 
       if (failures.length > 0) {
         console.log("\n" + pc.red(pc.bold("Errors")));
         for (const item of failures) {
           console.log(pc.red(`- ${item.fileName}: ${item.error}`));
+        }
+      }
+
+      if (removeFailures.length > 0) {
+        console.log("\n" + pc.yellow(pc.bold("Remove Errors")));
+        for (const item of removeFailures) {
+          console.log(pc.yellow(`- ${item.fileName}: ${item.error}`));
         }
       }
 

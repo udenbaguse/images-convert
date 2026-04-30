@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project follows Semantic Versioning.
 
+## [1.1.0] - 2026-05-01
+
+### Added
+- Added new target format `to-ico`.
+- Added `--remove` option to delete original source file after successful conversion.
+- Added `-o, --output <dir>` option to write converted files into a custom output directory.
+- Added `-q, --quality <number>` option for `to-webp` and `to-avif` (range `1-100`).
+
+### Changed
+- Updated conversion flow for `to-webp` and `to-avif` to support configurable quality.
+- Improved CLI help and output summaries to include removal statistics when `--remove` is used.
+- Updated package metadata and README examples for new options and formats.
+
 ## [1.0.1] - 2026-04-19
 
 ### Fixed
