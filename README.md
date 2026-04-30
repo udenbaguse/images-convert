@@ -11,8 +11,28 @@ This package provides one unified command so you can convert images to WebP, AVI
 
 ## Install
 
+Using `npm`:
+
 ```bash
 npm install -g images-convert
+```
+
+Using `pnpm`:
+
+```bash
+pnpm add -g images-convert
+```
+
+Using `yarn`:
+
+```bash
+yarn global add images-convert
+```
+
+Using `bun`:
+
+```bash
+bun add -g images-convert
 ```
 
 ## Usage
